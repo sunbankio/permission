@@ -20,9 +20,10 @@ service AdminAPI {
 
 ### Usage
 ```
-    goctl api plugin -plugin goctl-docplugin="-handlerdir /app/adminapi/internal/handler -utils github.com/sunbankio/gb-2025/pkg/utils -middlewarePkg github.com/sunbankio/gb-2025/app/adminapi/internal/middleware" -api api/zeroapi/adminapi.api
+    goctl api plugin -plugin permission="-handlerdir /app/adminapi/internal/handler -tpl /dev/tools/plugin/permission/permission.tpl" -api api/zeroapi/adminapi.api
 ```
 ### Parameters
 | Key | Description |
 | -------- | ------- |
 | -handlerdir | The directory of go-zero handlers |
+| -tpl | Template file to insert in go-zero handler |

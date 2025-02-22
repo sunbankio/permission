@@ -20,18 +20,15 @@ import (
 )
 
 var (
-	handlerdir        = flag.String("handlerdir", "", "the directory of the handler files")
-	middleWarePkg     = flag.String("middlewarePkg", "", "the middleware to add")
-	permissionUtilPkg = flag.String("utils", "", "the package of the permission util")
-)
+	handlerdir = flag.String("handlerdir", "", "the directory of the handler files")
+	tplFile    = flag.String("tpl", "", "the template file")
 
-const (
 	tpl = `
 		userPerms := middleware.GetPermissionFromContext(r.Context())
 		if userPerms == nil {
 			httpx.WriteJson(w, http.StatusForbidden, map[string]string{"error": "access denied: internal users only"})
 		}
-		utils.HasPermission(userPerms,"%s")
+		permUtils.HasPermission(userPerms,"%s")
 `
 )
 
@@ -93,13 +90,8 @@ func main() {
 		return
 	}
 
-	if *middleWarePkg == "" {
-		fmt.Println("middlewarePkg is required")
-		return
-	}
-
-	if *permissionUtilPkg == "" {
-		fmt.Println("utils is required")
+	if *tplFile == "" {
+		fmt.Println("tpl is required")
 		return
 	}
 
@@ -108,6 +100,17 @@ func main() {
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 	}
+
+	tplFilePath := filepath.Join(plug.Dir, *tplFile)
+
+	content, err := ioutil.ReadFile(tplFilePath)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	tpl = string(content)
 
 	service := plug.Api.Service.JoinPrefix()
 
@@ -126,16 +129,16 @@ func main() {
 
 			if v, ok := tags["permission"]; ok {
 
-				if isExist := replacePermission(handlerFinalPath, v); isExist {
-					fmt.Println("skipping code gen, just replacing permission:", v)
-					continue
-				}
+				// if isExist := replacePermission(handlerFinalPath, v); isExist {
+				// 	fmt.Println("skipping code gen, just replacing permission:", v)
+				// 	continue
+				// }
 
-				if err := AddImport(handlerFinalPath, *middleWarePkg); err != nil {
-					fmt.Printf("error adding middleWarePkg: %v\n", err)
-				}
+				// if err := AddImport(handlerFinalPath, *middleWarePkg); err != nil {
+				// 	fmt.Printf("error adding middleWarePkg: %v\n", err)
+				// }
 
-				if err := AddImport(handlerFinalPath, *permissionUtilPkg); err != nil {
+				if err := AddImport(handlerFinalPath, "github.com/sunbankio/permission/utils"); err != nil {
 					fmt.Printf("error adding utils: %v\n", err)
 				}
 
