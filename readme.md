@@ -3,6 +3,7 @@
 
 ### Installation
 ```
+    go install github.com/sunbankio/permission@latest
     $ go mod tidy
     $ go install
 ```
