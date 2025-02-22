@@ -22,7 +22,7 @@ import (
 var (
 	handlerdir = flag.String("handlerdir", "", "the directory of the handler files")
 	tplFile    = flag.String("tpl", "", "the template file")
-	typesPkg   = flag.String("-types", "", "the type package containing the context keys")
+	typesPkg   = flag.String("types", "", "the type package containing the context keys")
 	tpl        = ""
 )
 
