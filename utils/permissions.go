@@ -15,26 +15,23 @@ func HasPermission(userPermissions []string, requiredPermission string) bool {
 	return false
 }
 
-func ExtractContextValue(ctx context.Context, contextKey string) (map[string]interface{}, error) {
+func ExtractContextValue(ctx context.Context, contextKey any, destination any) error {
 
 	ctxVal := ctx.Value(contextKey)
 
 	if ctxVal == nil {
-		return nil, fmt.Errorf("context value of %s is nil", contextKey)
+		return fmt.Errorf("context value of %s is nil", contextKey)
 	}
 
 	bytes, err := json.Marshal(ctxVal)
 
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	m := make(map[string]interface{})
+	if err := json.Unmarshal(bytes, &destination); err != nil {
+		return err
+	}
 
-	json.Unmarshal(bytes, &m)
-
-	fmt.Println(m)
-
-	return m, nil
-
+	return nil
 }
