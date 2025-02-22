@@ -21,10 +21,11 @@ service AdminAPI {
 
 ### Usage
 ```
-    goctl api plugin -plugin permission="-handlerdir /app/adminapi/internal/handler -tpl /dev/tools/plugin/permission/permission.tpl" -api api/zeroapi/adminapi.api
+    goctl api plugin -plugin permission="-handlerdir /app/adminapi/internal/handler -tpl /dev/tools/plugin/permission/permission.tpl -types github.com/sunbankio/gb-2025/pkg/types/contextkey" -api api/zeroapi/adminapi.api
 ```
 ### Parameters
 | Key | Description |
 | -------- | ------- |
 | -handlerdir | The directory of go-zero handlers |
 | -tpl | Template file to insert in go-zero handler |
+| -types | Types package where the contextkey is defined |

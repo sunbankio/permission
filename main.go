@@ -22,14 +22,8 @@ import (
 var (
 	handlerdir = flag.String("handlerdir", "", "the directory of the handler files")
 	tplFile    = flag.String("tpl", "", "the template file")
-
-	tpl = `
-		userPerms := middleware.GetPermissionFromContext(r.Context())
-		if userPerms == nil {
-			httpx.WriteJson(w, http.StatusForbidden, map[string]string{"error": "access denied: internal users only"})
-		}
-		permUtils.HasPermission(userPerms,"%s")
-`
+	typesPkg   = flag.String("-types", "", "the type package containing the context keys")
+	tpl        = ""
 )
 
 func getHandlerBaseName(route spec.Route) (string, error) {
@@ -86,12 +80,17 @@ func main() {
 	flag.Parse()
 
 	if *handlerdir == "" {
-		fmt.Println("handlerdir is required")
+		fmt.Println("-handlerdir is required")
 		return
 	}
 
 	if *tplFile == "" {
-		fmt.Println("tpl is required")
+		fmt.Println("-tpl is required")
+		return
+	}
+
+	if *typesPkg == "" {
+		fmt.Println("-types is required")
 		return
 	}
 
@@ -140,6 +139,10 @@ func main() {
 
 				if err := AddImport(handlerFinalPath, "github.com/sunbankio/permission/utils"); err != nil {
 					fmt.Printf("error adding utils: %v\n", err)
+				}
+
+				if err := AddImport(handlerFilePath, *typesPkg); err != nil {
+					fmt.Printf("error adding types package: %v\n", err)
 				}
 
 				fmt.Println("modifying =>", handlerFinalPath)
