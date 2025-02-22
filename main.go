@@ -13,7 +13,6 @@ import (
 	plugin "github.com/zeromicro/go-zero/tools/goctl/plugin"
 
 	"go/ast"
-	"go/format"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -46,35 +45,6 @@ func getHandlerName(route spec.Route, folder string) string {
 	return handler
 }
 
-func replacePermission(file, new string) bool {
-	re, err := regexp.Compile(`utils\.HasPermission\(userPerms,"([^"]*)"`)
-	if err != nil {
-		panic(err)
-	}
-	data, err := ioutil.ReadFile(file)
-	if err != nil {
-		return false
-	}
-	matches := re.FindAllStringSubmatch(string(data), -1)
-	if len(matches) == 0 {
-		return false
-	}
-	oldPermission := matches[0][1]
-
-	newContent := re.ReplaceAllString(string(data), fmt.Sprintf(`utils.HasPermission(userPerms,"%s"`, new))
-
-	err = ioutil.WriteFile(file, []byte(newContent), 0644)
-
-	if err != nil {
-		return false
-	}
-
-	fmt.Println("old permission:", oldPermission, "new permission:", new)
-
-	return true
-}
-
-// goctl api plugin -plugin goctl-docplugin="-handlerdir /app/adminapi/internal/handler" -api api/zeroapi/adminapi.api
 func main() {
 
 	flag.Parse()
@@ -128,20 +98,11 @@ func main() {
 
 			if v, ok := tags["permission"]; ok {
 
-				// if isExist := replacePermission(handlerFinalPath, v); isExist {
-				// 	fmt.Println("skipping code gen, just replacing permission:", v)
-				// 	continue
-				// }
-
-				// if err := AddImport(handlerFinalPath, *middleWarePkg); err != nil {
-				// 	fmt.Printf("error adding middleWarePkg: %v\n", err)
-				// }
-
-				if err := AddImport(handlerFinalPath, "github.com/sunbankio/permission/utils"); err != nil {
+				if err := AddImport(handlerFinalPath, "utils", "github.com/sunbankio/permission/utils"); err != nil {
 					fmt.Printf("error adding utils: %v\n", err)
 				}
 
-				if err := AddImport(handlerFilePath, *typesPkg); err != nil {
+				if err := AddImport(handlerFinalPath, "contextkey", *typesPkg); err != nil {
 					fmt.Printf("error adding types package: %v\n", err)
 				}
 
@@ -158,18 +119,15 @@ func main() {
 
 }
 
-// if v, ok := tags["import"]; ok {
-// 	fmt.Println("import:", v)
-// 	if err := AddImport(handlerFinalPath, v); err != nil {
-// 		fmt.Printf("error adding import: %v\n", err)
-// 	}
-// }
-
-func AddImport(filename string, importPath string) error {
+func AddImport(filename string, alias, importPath string) error {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
 	if err != nil {
 		return err
+	}
+
+	if alias != "" {
+		alias += " "
 	}
 
 	// Find the import declaration
@@ -186,7 +144,7 @@ func AddImport(filename string, importPath string) error {
 		newImport := &ast.ImportSpec{
 			Path: &ast.BasicLit{
 				Kind:  token.STRING,
-				Value: `"` + importPath + `"`,
+				Value: alias + `"` + importPath + `"`,
 			},
 		}
 		genDecl.Specs = append(genDecl.Specs, newImport)
@@ -204,113 +162,6 @@ func AddImport(filename string, importPath string) error {
 }
 
 // AddCodeAfterParseBlock adds code after the httpx.Parse block
-func AddCodeAfterParseBlock(filePath string, newCode string) error {
-	fset := token.NewFileSet()
-
-	// Parse the file
-	file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
-	if err != nil {
-		return fmt.Errorf("failed to parse file: %v", err)
-	}
-
-	// Find the function
-	ast.Inspect(file, func(n ast.Node) bool {
-		// Look for the function declaration
-		funcDecl, ok := n.(*ast.FuncDecl)
-		if !ok || funcDecl.Name.Name != "CreateChannelHandler" {
-			return true
-		}
-
-		fmt.Println("found CreateChannelHandler")
-		// Find the if statement with httpx.Parse
-		ast.Inspect(funcDecl, func(n ast.Node) bool {
-
-			fmt.Println("funcDecl.Body.List:", len(funcDecl.Body.List))
-
-			ifStmt, ok := n.(*ast.SelectorExpr)
-			if !ok {
-				return true
-			}
-
-			sel, ok := ifStmt.X.(*ast.Ident)
-			if !ok {
-				return true
-			}
-
-			if sel.Name != "httpx" {
-				return true
-			}
-
-			if ifStmt.Sel.Name != "Parse" {
-				return true
-			}
-
-			fmt.Println("found if statement")
-
-			//get the end position of the if statement and insert new code
-			endPos := ifStmt.Pos()
-			fmt.Println("endPos:", endPos)
-
-			// Create your new statement
-			newStmt := &ast.ExprStmt{
-				X: &ast.CallExpr{
-					Fun: &ast.Ident{
-						Name: newCode,
-					},
-					Args: []ast.Expr{},
-				},
-			}
-
-			insertStmt(funcDecl.Body, endPos, newStmt)
-
-			return false
-		})
-		return false
-	})
-
-	// Write the modified AST back to file
-	f, err := os.Create(filePath)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	err = format.Node(f, fset, file)
-	if err != nil {
-		panic(err)
-	}
-
-	return nil
-}
-
-func insertStmt(block *ast.BlockStmt, pos token.Pos, newStmt ast.Stmt) {
-	// Find insert index by comparing positions
-	index := 0
-	for i, stmt := range block.List {
-		if stmt.Pos() >= pos {
-			index = i
-			break
-		}
-	}
-
-	fmt.Println("index:", index, len(block.List))
-
-	// Create new slice with extra capacity
-	newList := make([]ast.Stmt, len(block.List)+1)
-
-	// Copy statements before insert point
-	copy(newList[:index], block.List[:index])
-
-	// Insert new statement
-	newList[index] = newStmt
-
-	// Copy remaining statements
-	copy(newList[index+1:], block.List[index:])
-
-	// Update block's statement list
-	block.List = newList
-}
-
 func AppendAfterParse(filePath string, appendStr string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
