@@ -21,7 +21,7 @@ service AdminAPI {
 
 ### Usage
 ```
-    goctl api plugin -plugin permission="-handlerdir /app/adminapi/internal/handler -tpl /dev/tools/plugin/permission/permission.tpl -types github.com/sunbankio/gb-2025/pkg/types/contextkey" -api api/zeroapi/adminapi.api
+    goctl api plugin -plugin permission="-handlerdir /app/adminapi/internal/handler -tpl /dev/tools/plugin/permission/permission.tpl -types github.com/sunbankio/gb-2025/pkg/types/contextkey -dump /app" -api api/zeroapi/adminapi.api
 ```
 ### Parameters
 | Key | Description |

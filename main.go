@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -23,6 +24,7 @@ var (
 	tplFile    = flag.String("tpl", "", "the template file")
 	typesPkg   = flag.String("types", "", "the type package containing the context keys")
 	tpl        = ""
+	dumpDir    = flag.String("dump", "", "the directory of the dump files")
 )
 
 func getHandlerBaseName(route spec.Route) (string, error) {
@@ -49,6 +51,8 @@ func main() {
 
 	flag.Parse()
 
+	dumpOnly := false
+
 	if *handlerdir == "" {
 		fmt.Println("-handlerdir is required")
 		return
@@ -62,6 +66,13 @@ func main() {
 	if *typesPkg == "" {
 		fmt.Println("-types is required")
 		return
+	}
+
+	if dumpDir != nil {
+		if *dumpDir != "" {
+
+			dumpOnly = true
+		}
 	}
 
 	plug, err := plugin.NewPlugin()
@@ -85,6 +96,8 @@ func main() {
 
 	fmt.Println("code gen =>", plug.Dir)
 
+	allPermission := make([]string, 0)
+
 	for _, group := range service.Groups {
 		for _, route := range group.Routes {
 
@@ -98,20 +111,58 @@ func main() {
 
 			if v, ok := tags["permission"]; ok {
 
-				if err := AddImport(handlerFinalPath, "utils", "github.com/sunbankio/permission/utils"); err != nil {
-					fmt.Printf("error adding utils: %v\n", err)
+				if !dumpOnly {
+					if err := AddImport(handlerFinalPath, "utils", "github.com/sunbankio/permission/utils"); err != nil {
+						fmt.Printf("error adding utils: %v\n", err)
+					}
+
+					if err := AddImport(handlerFinalPath, "contextkey", *typesPkg); err != nil {
+						fmt.Printf("error adding types package: %v\n", err)
+					}
+
+					fmt.Println("modifying =>", handlerFinalPath)
+					fmt.Println("permission:", v)
+
+					if err := AppendAfterParse(handlerFinalPath, fmt.Sprintf(tpl, v)); err != nil {
+						fmt.Printf("error adding code: %v\n", err)
+					}
 				}
 
-				if err := AddImport(handlerFinalPath, "contextkey", *typesPkg); err != nil {
-					fmt.Printf("error adding types package: %v\n", err)
-				}
+				allPermission = append(allPermission, v)
+			}
+		}
+	}
 
-				fmt.Println("modifying =>", handlerFinalPath)
-				fmt.Println("permission:", v)
+	if dumpDir != nil {
+		if *dumpDir != "" {
 
-				if err := AppendAfterParse(handlerFinalPath, fmt.Sprintf(tpl, v)); err != nil {
-					fmt.Printf("error adding code: %v\n", err)
-				}
+			jsonPermissionBytes, err := json.Marshal(allPermission)
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			filename := filepath.Join(plug.Dir, *dumpDir, "permission.json")
+
+			fmt.Println("dump =>", filename)
+
+			if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			defer f.Close()
+
+			_, err = f.Write(jsonPermissionBytes)
+			if err != nil {
+				fmt.Println(err)
+				return
 			}
 
 		}
