@@ -33,3 +33,9 @@ service AdminAPI {
 | -tpl | Template file to insert in go-zero handler |
 | -types | Types package where the contextkey is defined |
 | -dump  | Dump all permissions detected |
+| -imports | custom imports to be appended on the handler |
+
+
+git tag v1.0.5
+git push origin v1.0.5
+GOPROXY=proxy.golang.org go list -m github.com/sunbankio/permission@v1.0.5
