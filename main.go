@@ -20,12 +20,16 @@ import (
 )
 
 var (
-	handlerdir = flag.String("handlerdir", "", "the directory of the handler files")
-	tplFile    = flag.String("tpl", "", "the template file")
-	typesPkg   = flag.String("types", "", "the type package containing the context keys")
-	tpl        = ""
-	dumpDir    = flag.String("dump", "", "the directory of the dump files")
+	handlerdir  = flag.String("handlerdir", "", "the directory of the handler files")
+	tplFile     = flag.String("tpl", "", "the template file")
+	typesPkg    = flag.String("types", "", "the type package containing the context keys")
+	tpl         = ""
+	dumpDir     = flag.String("dump", "", "the directory of the dump files")
+	imports     = flag.String("imports", "", "additional imports. comma separated")
+	versionFlag = flag.Bool("version", false, "print version information")
 )
+
+const VERSION = "v1.0.5"
 
 func getHandlerBaseName(route spec.Route) (string, error) {
 	handler := route.Handler
@@ -51,6 +55,11 @@ func main() {
 
 	flag.Parse()
 
+	if *versionFlag {
+		fmt.Println("Version:", VERSION)
+		os.Exit(0)
+	}
+
 	dumpOnly := false
 
 	if *handlerdir == "" {
@@ -73,6 +82,12 @@ func main() {
 
 			dumpOnly = true
 		}
+	}
+
+	additionalImports := []string{}
+
+	if *imports != "" {
+		additionalImports = strings.Split(*imports, ",")
 	}
 
 	plug, err := plugin.NewPlugin()
@@ -100,16 +115,11 @@ func main() {
 
 	for _, group := range service.Groups {
 		for _, route := range group.Routes {
-
-			handlerFilePath := filepath.Join(*handlerdir, group.Annotation.Properties["group"], strings.ToLower(getHandlerName(route, ""))+".go")
-
-			// fmt.Println( handlerdir, group.Annotation.Properties," ==>", handlerFilePath,)
-
-			handlerFinalPath := filepath.Join(plug.Dir, handlerFilePath)
-
 			tags := route.AtDoc.Properties
 
 			if v, ok := tags["permission"]; ok {
+				handlerFilePath := filepath.Join(*handlerdir, group.Annotation.Properties["group"], strings.ToLower(getHandlerName(route, ""))+".go")
+				handlerFinalPath := filepath.Join(plug.Dir, handlerFilePath)
 
 				if !dumpOnly {
 					if err := AddImport(handlerFinalPath, "utils", "github.com/sunbankio/permission/utils"); err != nil {
@@ -120,10 +130,18 @@ func main() {
 						fmt.Printf("error adding types package: %v\n", err)
 					}
 
+					for _, imp := range additionalImports {
+						if err := AddImport(handlerFinalPath, "", imp); err != nil {
+							fmt.Printf("error adding import: %v\n", err)
+						}
+					}
+
 					fmt.Println("modifying =>", handlerFinalPath)
 					fmt.Println("permission:", v)
 
-					if err := AppendAfterParse(handlerFinalPath, fmt.Sprintf(tpl, v)); err != nil {
+					content := fmt.Sprintf(tpl, v)
+
+					if err := AppendAfterParse(handlerFinalPath, content); err != nil {
 						fmt.Printf("error adding code: %v\n", err)
 					}
 				}
