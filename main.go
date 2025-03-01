@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -29,7 +30,11 @@ var (
 	versionFlag = flag.Bool("version", false, "print version information")
 )
 
-const VERSION = "v1.0.5"
+const (
+	VERSION     = "v1.0.5"
+	tplStartTag = "//permission:start"
+	tplEndTag   = "//permission:end"
+)
 
 func getHandlerBaseName(route spec.Route) (string, error) {
 	handler := route.Handler
@@ -139,7 +144,11 @@ func main() {
 					fmt.Println("modifying =>", handlerFinalPath)
 					fmt.Println("permission:", v)
 
-					content := fmt.Sprintf(tpl, v)
+					content := tplStartTag + "\n" + fmt.Sprintf(tpl, v) + "\n" + tplEndTag
+
+					if err := removeContentBetween(handlerFinalPath, tplStartTag, tplEndTag); err != nil {
+						fmt.Printf("error adding code: %v\n", err)
+					}
 
 					if err := AppendAfterParse(handlerFinalPath, content); err != nil {
 						fmt.Printf("error adding code: %v\n", err)
@@ -199,17 +208,28 @@ func AddImport(filename string, alias, importPath string) error {
 		alias += " "
 	}
 
-	// Find the import declaration
+	// Check if the import already exists
 	for _, decl := range file.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok {
-			continue
-		}
-		if genDecl.Tok != token.IMPORT {
+		if !ok || genDecl.Tok != token.IMPORT {
 			continue
 		}
 
-		// Add new import spec
+		for _, spec := range genDecl.Specs {
+
+			importSpec, ok := spec.(*ast.ImportSpec)
+			if !ok {
+				continue
+			}
+
+			if strings.Contains(importSpec.Path.Value, `"`+importPath+`"`) {
+				// Import already exists, do nothing
+				fmt.Println("import already exists", importSpec.Path.Value)
+				return nil
+			}
+		}
+
+		// Add new import spec if it doesn't exist
 		newImport := &ast.ImportSpec{
 			Path: &ast.BasicLit{
 				Kind:  token.STRING,
@@ -228,6 +248,64 @@ func AddImport(filename string, alias, importPath string) error {
 	defer f.Close()
 
 	return printer.Fprint(f, fset, file)
+}
+
+func removeContentBetween(filepath, startDelim, endDelim string) error {
+	file, err := os.Open(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+
+	isDeleting := false
+
+	startDelimRegex := regexp.MustCompile(startDelim)
+	endDelimRegex := regexp.MustCompile(endDelim)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if startDelimRegex.MatchString(line) {
+			isDeleting = true
+		}
+
+		if !isDeleting {
+			lines = append(lines, line)
+		}
+
+		if endDelimRegex.MatchString(line) {
+			isDeleting = false
+		}
+
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading file: %w", err)
+	}
+
+	// Write modified content back to the file
+	outFile, err := os.Create(filepath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer outFile.Close()
+
+	writer := bufio.NewWriter(outFile)
+	for _, line := range lines {
+		_, err := fmt.Fprintln(writer, line)
+		if err != nil {
+			return fmt.Errorf("failed to write to file: %w", err)
+		}
+	}
+
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush writer: %w", err)
+	}
+
+	return nil
 }
 
 // AddCodeAfterParseBlock adds code after the httpx.Parse block
